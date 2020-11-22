@@ -1,0 +1,21 @@
+version: "3.7"
+services:
+    go_xml_min:
+        image: haifengat/go_xml_min:20201122
+        container_name: go_xml_min
+        restart: always
+        environment:
+            - TZ=Asia/Shanghai
+            - pgMin=postgresql://postgres:12345@172.19.129.98:20032/postgres?sslmode=disable
+            # sftp 配置,/xml中没有则会从sftp下载
+            - xmlSftp=172.19.129.98/22/root/Gdqh2018
+            - xmlSftpPath=/mnt/future_xml/
+        volumes:
+            # xml文件路径
+            - /mnt/future_xml=/xml
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                reservations:
+                    memory: 200M
