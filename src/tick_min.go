@@ -18,6 +18,7 @@ import (
 	"database/sql"
 
 	_ "github.com/lib/pq" // postgres
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
 )
@@ -144,10 +145,14 @@ func Run(startDay string) {
 
 // RunOnce 处理一天数据
 func RunOnce(tradingDay string) (msg string, err error) {
+	if pgMin == "" {
+		logrus.Error("pg未配置")
+		return "pg未配置", errors.Errorf("config err")
+	}
 	// 取 xml
-	localFile := path.Join("/xml-", tradingDay+".tar.gz")
-	var xmlFile *os.File
-	if xmlFile, err = os.OpenFile(localFile, os.O_RDONLY, os.ModePerm); err != nil {
+	var xmlReader io.Reader
+	localFile := path.Join("/xml", tradingDay+".tar.gz")
+	if xmlFile, err := os.OpenFile(localFile, os.O_RDONLY, os.ModePerm); err != nil {
 		// 本地没有, 用sftp
 		if os.IsNotExist(err) {
 			// export xmlSftp=192.168.111.191/22/root/123456
@@ -159,10 +164,11 @@ func RunOnce(tradingDay string) (msg string, err error) {
 				if sftp, err = NewHfSftp(host, port, user, pwd); err == nil {
 					defer sftp.Close()
 					remoteFullName := path.Join(os.Getenv("xmlSftpPath"), tradingDay+".tar.gz")
-					if err = sftp.Download(remoteFullName, "/xml-"); err == nil {
-						xmlFile, _ = os.OpenFile(localFile, os.O_RDONLY, os.ModePerm)
+					if sftpFile, err := sftp.client.Open(remoteFullName); err == nil {
+						xmlReader = sftpFile
+						logrus.Info("reading file from sftp: ", remoteFullName)
 					} else {
-						return "sftp 下载错误", err
+						return "sftp 读取文件错误", err
 					}
 				} else {
 					return "sftp 连接错误", err
@@ -173,12 +179,14 @@ func RunOnce(tradingDay string) (msg string, err error) {
 		} else {
 			return "取本地xml文件错误:", err
 		}
+	} else {
+		xmlReader = xmlFile
+		logrus.Info("reading file: ", localFile)
+		// xml 解析
+		_, err = xmlFile.Seek(0, 0) // 切换到文件开始,否则err==EOF
 	}
-	logrus.Info("reading file: ", localFile)
-	// xml 解析
-	_, err = xmlFile.Seek(0, 0) // 切换到文件开始,否则err==EOF
 	var gr *gzip.Reader
-	if gr, err = gzip.NewReader(xmlFile); err == nil {
+	if gr, err = gzip.NewReader(xmlReader); err == nil {
 		defer gr.Close()
 
 		tr := tar.NewReader(gr)

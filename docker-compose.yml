@@ -12,7 +12,7 @@ services:
             - xmlSftpPath=/mnt/future_xml/
         volumes:
             # xml文件路径
-            - /mnt/future_xml=/xml
+            - /mnt/future_xml:/xml
         deploy:
             resources:
                 limits:
