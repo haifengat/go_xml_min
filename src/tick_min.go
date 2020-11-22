@@ -313,7 +313,9 @@ func RunOnce(tradingDay string) (msg string, err error) {
 				}
 			}
 		}
-
+		if cnt > 0 {
+			logrus.Info(cnt)
+		}
 		// 分钟数据写入
 		var db *sql.DB
 		if db, err = sql.Open("postgres", pgMin); err != nil {
