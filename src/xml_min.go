@@ -128,7 +128,7 @@ func Run(startDay string) {
 	for _, day := range days {
 		// gzip 读取tick.csv.gz数据
 		// 文件不存在,sleep 10min重读
-		logrus.Infof("%s starting...", day)
+		logrus.Infof("%s waiting...", day)
 		for {
 			msg, err := RunOnce(day)
 			if err == nil {
@@ -188,6 +188,7 @@ func RunOnce(tradingDay string) (msg string, err error) {
 	var gr *gzip.Reader
 	if gr, err = gzip.NewReader(xmlReader); err == nil {
 		defer gr.Close()
+		logrus.Info("starting...")
 
 		tr := tar.NewReader(gr)
 		// 解压tar中的所有文件(其实只有一个)
@@ -321,6 +322,7 @@ func RunOnce(tradingDay string) (msg string, err error) {
 		if db, err = sql.Open("postgres", pgMin); err != nil {
 			return "数据库打开错误", err
 		}
+		logrus.Info("分钟数据入库")
 		// 退出时关闭
 		defer db.Close()
 		res, _ := db.Exec(`delete from future.future_min where "TradingDay" = $1`, tradingDay)
