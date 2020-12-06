@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"encoding/csv"
 	"encoding/xml"
-	"fmt"
 	"io"
 	"math"
 	"os"
@@ -17,6 +16,7 @@ import (
 
 	"database/sql"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq" // postgres
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -331,10 +331,17 @@ func RunOnce(tradingDay string) (msg string, err error) {
 		} else if cnt > 0 {
 			logrus.Info("delete data of ", tradingDay, " rows:", strconv.FormatInt(cnt, 10))
 		}
-
-		sqlStr := `INSERT INTO future.future_min ("DateTime", "Instrument", "Open", "High", "Low", "Close", "Volume", "OpenInterest", "TradingDay") VALUES('%s', '%s', %.4f, %.4f, %.4f, %.4f, %d, %.4f, '%s');`
-		// 开启入库事务
-		tx, _ := db.Begin()
+		logrus.Info("insert mins to pg...")
+		// 使用 copy
+		txn, err := db.Begin()
+		if err != nil {
+			logrus.Fatal("database begin trsaction error: ", err)
+		}
+		var stmt *sql.Stmt
+		stmt, err = txn.Prepare(pq.CopyInSchema("future", "future_min", "DateTime", "Instrument", "Open", "High", "Low", "Close", "Volume", "OpenInterest", "TradingDay"))
+		if err != nil {
+			logrus.Fatal("db copy prepare error: ", err)
+		}
 		for inst, bars := range instBars {
 			// 按datetime排序
 			sort.Sort(bars)
@@ -346,22 +353,33 @@ func RunOnce(tradingDay string) (msg string, err error) {
 				}
 				t, err := time.Parse("2006010215:04:05", bar.DateTime)
 				if err != nil {
-					return "时间格式错误!", err
+					// return "时间格式错误!", err
+					continue
 				}
 				vol := bar.Volume - preVol
 				if vol == 0 {
 					continue
 				}
-				s := fmt.Sprintf(sqlStr, t.Format("2006-01-02 15:04:05"), inst, bar.Open, bar.High, bar.Low, bar.Close, vol, bar.OpenInterest, tradingDay)
-				tx.Exec(s)
+				if res, err = stmt.Exec(t.Format("2006-01-02 15:04:05"), inst, bar.Open, bar.High, bar.Low, bar.Close, vol, bar.OpenInterest, tradingDay); err != nil {
+					logrus.Fatalf("exec copy error: %s, %s, %v", inst, t.Format("2006-01-02 15:04:05"), err)
+				}
+				cnt++
 				preVol = bar.Volume
 			}
 		}
-		err = tx.Commit()
-		if err != nil {
-			tx.Rollback()
-			return "入库错误", err
+
+		if _, err := stmt.Exec(); err != nil {
+			logrus.Fatal("exec last copy error: ", err)
 		}
+
+		if err = stmt.Close(); err != nil {
+			logrus.Fatal("close error: ", err)
+		}
+
+		if err = txn.Commit(); err != nil {
+			logrus.Fatal("txn commit error: ", err)
+		}
+
 		logrus.Info(tradingDay, " finished.")
 		return "", nil
 	}
