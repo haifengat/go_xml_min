@@ -8,6 +8,7 @@ xml->tick->min->db
 
 ## 使用说明
 * xml文件路径  /xml
+* 单日处理 -s yyyyMMdd
 
 ### 环境变量
 * pgMin postgres配置
@@ -23,7 +24,8 @@ pgMin=postgresql://postgres:12345@172.19.129.98:20032/postgres?sslmode=disable x
 
 ### 生成镜像
 ```bash
-docker build -t haifengat/go_xml_min:`date +%Y%m%d` .
+docker build -t haifengat/go_xml_min:`date +%Y%m%d` . && \
+docker push haifengat/go_xml_min:`date +%Y%m%d`
 ```
 
 ### docker-compose.yml
