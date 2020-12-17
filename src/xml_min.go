@@ -348,7 +348,7 @@ func RunOnce(tradingDay string) (msg string, err error) {
 			preVol := int32(0)
 			for _, bar := range bars {
 				// 处理开收盘时间数据
-				if n, ok := minTicks[inst+bar.DateTime]; !ok || n <= 1 {
+				if n, ok := minTicks[inst+bar.DateTime]; !ok || n <= 2 {
 					continue
 				}
 				t, err := time.Parse("2006010215:04:05", bar.DateTime)
